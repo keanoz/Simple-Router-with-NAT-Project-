@@ -6,6 +6,10 @@
 #include <algorithm>
 #include <iostream>
 
+#include <fstream>
+#include <string>
+using namespace std;
+
 namespace simple_router {
 
 //////////////////////////////////////////////////////////////////////////
@@ -44,10 +48,16 @@ namespace simple_router {
                 break;
             }
         }
-        if(entryIt == m_natTable.end())
+        cerr<<"Lookup INTO TABLE" << endl;
+        if(entryIt == m_natTable.end()){
+            //cerr << "INSERT INTO TABLE 1" << endl;
             return nullptr;
-        else
+        }
+
+        else {
+            //cerr << "INSERT INTO TABLE 2" << endl;
             return entryIt->second;
+        }
     }
 
 /**
@@ -65,6 +75,7 @@ namespace simple_router {
         auto now = steady_clock::now();
         newEntry->timeUsed = now;
         m_natTable.insert(std::pair<uint16_t, std::shared_ptr<NatEntry>>(id, newEntry));
+        cerr<<"Insert INTO TABLE" << endl;
         //m_natTable[id] = newEntry; // issue
         //newEntry.isValid = true;
 

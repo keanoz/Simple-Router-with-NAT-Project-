@@ -99,13 +99,12 @@ namespace simple_router {
           cerr<<"ARP reply"<<endl;
           if(a_header.arp_tip==iface->ip){
             Buffer mac(a_header.arp_sha, a_header.arp_sha + ETHER_ADDR_LEN);
-            //cerr<<"intsert arp entry"<<mac<<" "<<a_header.arp_sip<<endl;
             shared_ptr<ArpRequest> arpRequest = m_arp.insertArpEntry(mac, a_header.arp_sip);
             if (arpRequest != nullptr) {
               //send those packages out
               while(arpRequest->packets.size()>0){
-                //contruct an etherenet frame to send
-                cerr<<"Start preparing for package<<endl";
+                //contruct an ethernet frame to send
+                cerr<<"Start preparing for package"<<endl;
                 struct ethernet_hdr s_e_header;
                 s_e_header.ether_type=htons(0x0800);
                 memcpy(s_e_header.ether_dhost,a_header.arp_sha,ETHER_ADDR_LEN);
@@ -126,7 +125,7 @@ namespace simple_router {
                 sendPacket(r_packet,inIface);
                 cerr<<inIface<<endl;
                 cerr<<"Finished sending ipv4 packet with the following header"<<endl;
-                //print_hdrs(r_packet);
+                print_hdrs(r_packet);
                 arpRequest->packets.pop_front();
               }
               m_arp.removeRequest(arpRequest);
@@ -170,6 +169,13 @@ namespace simple_router {
           return;
         }
         const Interface* ipDest = findIfaceByIp(ip_header.ip_dst);
+        //cerr << "test"<<ipToString(ipDest->ip)<<endl;
+          if (ipDest != nullptr) {
+              cerr << ipDest<<endl;
+          }
+          else{
+              cerr <<"IPdest is null"<<endl;
+          }
         if (ipDest != nullptr) {
           //to this router, deal with it
           if(ip_header.ip_p == 1){
@@ -226,8 +232,8 @@ namespace simple_router {
               return;
             }
             else {
-              cerr<<"ICMP echo reply"<<endl;
-              //forward ICMP packetsap_
+              cerr<<"ICMP echo reply"<<endl; //issue here
+              //forward ICMP packets
               RoutingTableEntry rtEntry = getRoutingTable().lookup(ip_header.ip_dst);
               // Check ARP cache entry for the IP-MAC pair
               shared_ptr<ArpEntry> arpEntry = m_arp.lookup(ip_header.ip_dst);
@@ -252,6 +258,7 @@ namespace simple_router {
                 sendPacket(s_packet, rtEntry.ifName);
                 cerr<<rtEntry.ifName<<endl;
                 cerr<<"Finished sending icmp packet"<<endl;
+                print_hdrs(s_packet);
                 return;
               }
               else {
@@ -271,7 +278,33 @@ namespace simple_router {
         }
         else{
           //not to this router,forward it
-          RoutingTableEntry rtEntry = getRoutingTable().lookup(ip_header.ip_dst);
+
+             if(nat_flag == 1){
+                 uint16_t id = ip_header.ip_id;
+                 //get IP header
+                 ip_hdr *ipHder = (ip_hdr *)(packet.data() + sizeof(ethernet_hdr));
+                 struct icmp_hdr ic_header;
+                 memcpy(&ic_header, &(packet[sizeof(ethernet_hdr)+sizeof(ip_hdr)]), sizeof(icmp_hdr));
+                 if (ic_header.icmp_type == 8) { //echo request forwarded to sw0-eth1, why??????
+                     cerr<<"NAT: ECHO REQUEST"  << endl;
+                    uint32_t src  = ip_header.ip_src;
+                    const Interface* externalInterface = findIfaceByName("sw0-eth4");
+                     cerr<<"IP source "  << ipToString(ipHder->ip_src) << endl;
+                     ipHder->ip_src = externalInterface->ip; //change header to external ip address
+                     cerr<<"IP source "  << ipToString(ipHder->ip_src) << endl;
+                     m_natTable.insertNatEntry(id, src, externalInterface->ip); //check if in nat already
+                }
+                else if(ic_header.icmp_type == 0){
+                     cerr<<"NAT: ECHO REPLY" << endl;
+                     //uint16_t id = ip_header.ip_id;
+                     std::shared_ptr<NatEntry> entry = m_natTable.lookup(id);
+                     //ip_header.ip_dst = entry->internal_ip; //issue here!q
+
+                 }
+            }
+
+
+            RoutingTableEntry rtEntry = getRoutingTable().lookup(ip_header.ip_dst);
           // Check ARP cache entry for the IP-MAC pair
           shared_ptr<ArpEntry> arpEntry = m_arp.lookup(ip_header.ip_dst);
           if (arpEntry != nullptr) {
@@ -295,7 +328,7 @@ namespace simple_router {
             // Forward it
             cerr << "Ready to forward ip packets" << endl;
             sendPacket(s_packet, rtEntry.ifName);
-            cerr<<rtEntry.ifName;
+            cerr<<rtEntry.ifName<<endl;
             cerr<<"Finished sending ip packets"<<endl;
 
             print_hdrs(s_packet);
