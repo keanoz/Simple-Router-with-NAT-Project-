@@ -45,7 +45,8 @@ namespace simple_router {
             if (entryIt->first == id) {//fix
                 auto now = steady_clock::now();
                 entryIt->second->timeUsed = now;
-                break;
+                return entryIt->second;
+                //break;
             }
         }
         cerr<<"Lookup INTO TABLE" << endl;
